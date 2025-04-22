@@ -1,0 +1,122 @@
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+
+local localPlayer = Players.LocalPlayer
+local character = localPlayer.Character or localPlayer.CharacterAdded:Wait()
+local currentRoom = nil
+local lastESP = {}
+
+-- Kiểm tra object có phải vật tương tác không
+local function isInteractable(object)
+	if object:IsA("Model") or object:IsA("Part") then
+		if object:FindFirstChildWhichIsA("ProximityPrompt") or object:FindFirstChildWhichIsA("ClickDetector") then
+			return true
+		end
+		local name = object.Name:lower()
+		return name:find("key") or name:find("drawer") or name:find("switch") or name:find("lock")
+	end
+	return false
+end
+
+-- Kiểm tra cửa thật (cửa có ProximityPrompt, hoặc tên chứa "Door")
+local function isRealDoor(door)
+	if door:IsA("Model") or door:IsA("Part") then
+		-- Kiểm tra tên và có ProximityPrompt
+		if door.Name:lower():find("door") and door:FindFirstChildWhichIsA("ProximityPrompt") then
+			return true
+		end
+	end
+	return false
+end
+
+-- Kiểm tra cửa giả (cửa có ProximityPrompt nhưng có thể tấn công)
+local function isFakeDoor(door)
+	if door:IsA("Model") or door:IsA("Part") then
+		if door.Name:lower():find("fake") and door:FindFirstChildWhichIsA("ProximityPrompt") then
+			return true
+		end
+	end
+	return false
+end
+
+-- Thêm ESP cho cửa thật
+local function applyESP(obj, color)
+	if not obj:FindFirstChild("ESP_Highlight") then
+		local highlight = Instance.new("Highlight")
+		highlight.Name = "ESP_Highlight"
+		highlight.FillColor = color
+		highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
+		highlight.FillTransparency = 0.5
+		highlight.OutlineTransparency = 0
+		highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+		highlight.Adornee = obj
+		highlight.Parent = obj
+		table.insert(lastESP, highlight)
+	end
+end
+
+-- Xoá tất cả ESP cũ
+local function clearESP()
+	for _, esp in ipairs(lastESP) do
+		if esp and esp.Parent then
+			esp:Destroy()
+		end
+	end
+	lastESP = {}
+end
+
+-- Hàm kiểm tra nhân vật có nằm trong vùng (bounding box) của model không
+local function isCharacterInside(model)
+	local root = character:FindFirstChild("HumanoidRootPart")
+	if not root then return false end
+	local primary = model.PrimaryPart or model:FindFirstChild("Floor") or model:FindFirstChildWhichIsA("BasePart")
+	if not primary then return false end
+
+	local modelCFrame, modelSize = model:GetBoundingBox()
+	local relative = modelCFrame:pointToObjectSpace(root.Position)
+	return math.abs(relative.X) <= modelSize.X / 2 and
+		   math.abs(relative.Y) <= modelSize.Y / 2 and
+		   math.abs(relative.Z) <= modelSize.Z / 2
+end
+
+-- Tìm phòng chứa nhân vật
+local function getCurrentRoom()
+	for _, model in ipairs(workspace:GetChildren()) do
+		if model:IsA("Model") and isCharacterInside(model) then
+			return model
+		end
+	end
+	return nil
+end
+
+-- Cơ chế tấn công cửa giả khi lại gần
+local function attackNearFakeDoor(fakeDoor)
+	local root = character:FindFirstChild("HumanoidRootPart")
+	if not root then return end
+	local distance = (fakeDoor.Position - root.Position).Magnitude
+
+	if distance < 5 then -- Nếu khoảng cách gần hơn 5 studs
+		-- Tạo hiệu ứng tấn công, ví dụ mất máu
+		local humanoid = character:FindFirstChild("Humanoid")
+		if humanoid then
+			humanoid:TakeDamage(10) -- Gây 10 sát thương cho người chơi
+		end
+	end
+end
+
+-- Theo dõi chuyển phòng và cập nhật ESP
+RunService.Heartbeat:Connect(function()
+	local room = getCurrentRoom()
+	if room and room ~= currentRoom then
+		currentRoom = room
+		clearESP()
+		-- Quét các object trong phòng và chỉ ESP cửa thật (cửa giả không hiển thị ESP)
+		for _, obj in ipairs(currentRoom:GetDescendants()) do
+			if isRealDoor(obj) then
+				applyESP(obj, Color3.fromRGB(0, 255, 0))  -- Cửa thật màu xanh lá
+			elseif isFakeDoor(obj) then
+				attackNearFakeDoor(obj)  -- Kiểm tra nếu gần cửa giả thì tấn công
+			end
+		end
+	end
+end)
