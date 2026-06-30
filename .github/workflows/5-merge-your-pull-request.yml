@@ -12,16 +12,16 @@ on:
       - main
 
 # Reference: https://docs.github.com/en/actions/security-guides/automatic-token-authentication
-permissions:
-  # Need `contents: read` to checkout the repository.
-  # Need `contents: write` to update the step metadata.
-  contents: write
+permissions: {}
 
 jobs:
   # Get the current step to only run the main job when the learner is on the same step.
   get_current_step:
     name: Check current step number
     runs-on: ubuntu-latest
+    permissions:
+      # Need `contents: read` to checkout the repository.
+      contents: read
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -46,6 +46,10 @@ jobs:
 
     # We'll run Ubuntu for performance instead of Mac or Windows.
     runs-on: ubuntu-latest
+    permissions:
+      # Need `contents: read` to checkout the repository.
+      # Need `contents: write` to update the step metadata.
+      contents: write
 
     steps:
       # We'll need to check out the repository so that we can edit the README.
