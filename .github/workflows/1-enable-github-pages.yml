@@ -52,6 +52,7 @@ jobs:
         with:
           fetch-depth: 0 # Let's get all the branches.
           ref: my-pages
+          persist-credentials: false
 
       # In README.md, switch step 1 for step 2.
       - name: Update to step 2
